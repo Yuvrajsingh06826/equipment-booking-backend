@@ -113,7 +113,30 @@ const editBookingRequest = async (
     throw new Error("Booking request not found");
   }
 
-  const updatedBooking = await updateBookingById(bookingId, updateData);
+  const currentRentalDays =
+    typeof booking.rentalDays === "number" ? booking.rentalDays : 0;
+  const currentDailyRate =
+    typeof booking.dailyRate === "number" ? booking.dailyRate : 0;
+
+  const updatedRentalDays =
+    typeof updateData.rentalDays === "number"
+      ? updateData.rentalDays
+      : currentRentalDays;
+
+  const updatedDailyRate =
+    typeof updateData.dailyRate === "number"
+      ? updateData.dailyRate
+      : currentDailyRate;
+
+  const updatedTotalBookingPrice = calculateTotalBookingPrice(
+    updatedRentalDays,
+    updatedDailyRate
+  );
+
+  const updatedBooking = await updateBookingById(bookingId, {
+    ...updateData,
+    totalBookingPrice: updatedTotalBookingPrice
+  });
 
   logInfo(`Booking request updated: ${bookingId}`);
 
