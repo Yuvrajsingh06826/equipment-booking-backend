@@ -4,6 +4,9 @@ export interface BookingInput {
   rentalDate: string;
   rentalDays: number;
   dailyRate: number;
+  bookingType?: "guest" | "registered";
+  guestEmail?: string;
+  userId?: string;
 }
 
 export interface BookingRecord {
@@ -59,6 +62,16 @@ export const isEquipmentAlreadyBooked = (
   );
 };
 
+export const isValidBookingType = (
+  bookingType: string | undefined
+): boolean => {
+  if (!bookingType) {
+    return true;
+  }
+
+  return bookingType === "guest" || bookingType === "registered";
+};
+
 export const validateBooking = (
   booking: BookingInput,
   existingBooking: BookingRecord | null
@@ -77,6 +90,18 @@ export const validateBooking = (
 
   if (!isSupportedEquipment(booking.equipmentName)) {
     throw new Error("Selected equipment is not supported");
+  }
+
+  if (!isValidBookingType(booking.bookingType)) {
+    throw new Error("Booking type must be guest or registered");
+  }
+
+  if (booking.bookingType === "guest" && !booking.guestEmail) {
+    throw new Error("Guest email is required for guest booking");
+  }
+
+  if (booking.bookingType === "registered" && !booking.userId) {
+    throw new Error("User id is required for registered booking");
   }
 
   if (

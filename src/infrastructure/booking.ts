@@ -5,8 +5,12 @@ import {
 } from "../controllers/booking";
 import {
   addBooking,
-  getBookingByEquipmentAndDate
+  getAllBookings,
+  getBookingByEquipmentAndDate,
+  getBookingById,
+  updateBookingById
 } from "./mongodb/queries/booking";
+import { logInfo } from "../utils/logger";
 
 const reserveEquipment = async (booking: BookingInput) => {
   const existingBookingFromDb = await getBookingByEquipmentAndDate(
@@ -30,8 +34,15 @@ const reserveEquipment = async (booking: BookingInput) => {
 
   const savedBooking = await addBooking({
     ...booking,
+    bookingType: booking.bookingType ?? "guest",
+    bookingStatus: "pending",
+    guestEmail: booking.guestEmail ?? "",
+    userId: booking.userId ?? "",
+    adminNotes: "",
     totalBookingPrice
   });
+
+  logInfo("New booking request created");
 
   return {
     message: "Equipment booked successfully",
@@ -39,6 +50,83 @@ const reserveEquipment = async (booking: BookingInput) => {
   };
 };
 
+const getAllBookingRequests = async () => {
+  const bookings = await getAllBookings();
+
+  logInfo("Fetched all booking requests");
+
+  return {
+    message: "All booking requests fetched successfully",
+    bookings
+  };
+};
+
+const acceptBookingRequest = async (bookingId: string) => {
+  const booking = await getBookingById(bookingId);
+
+  if (!booking) {
+    throw new Error("Booking request not found");
+  }
+
+  const updatedBooking = await updateBookingById(bookingId, {
+    bookingStatus: "accepted"
+  });
+
+  logInfo(`Booking request accepted: ${bookingId}`);
+
+  return {
+    message: "Booking request accepted successfully",
+    booking: updatedBooking
+  };
+};
+
+const declineBookingRequest = async (
+  bookingId: string,
+  adminNotes: string
+) => {
+  const booking = await getBookingById(bookingId);
+
+  if (!booking) {
+    throw new Error("Booking request not found");
+  }
+
+  const updatedBooking = await updateBookingById(bookingId, {
+    bookingStatus: "declined",
+    adminNotes
+  });
+
+  logInfo(`Booking request declined: ${bookingId}`);
+
+  return {
+    message: "Booking request declined successfully",
+    booking: updatedBooking
+  };
+};
+
+const editBookingRequest = async (
+  bookingId: string,
+  updateData: Partial<BookingInput>
+) => {
+  const booking = await getBookingById(bookingId);
+
+  if (!booking) {
+    throw new Error("Booking request not found");
+  }
+
+  const updatedBooking = await updateBookingById(bookingId, updateData);
+
+  logInfo(`Booking request updated: ${bookingId}`);
+
+  return {
+    message: "Booking request updated successfully",
+    booking: updatedBooking
+  };
+};
+
 export default {
-  reserveEquipment
+  reserveEquipment,
+  getAllBookingRequests,
+  acceptBookingRequest,
+  declineBookingRequest,
+  editBookingRequest
 };

@@ -25,6 +25,31 @@ const bookingSchema = new mongoose.Schema(
     totalBookingPrice: {
       type: Number,
       required: true
+    },
+    bookingType: {
+      type: String,
+      enum: ["guest", "registered"],
+      required: true,
+      default: "guest"
+    },
+    bookingStatus: {
+      type: String,
+      enum: ["pending", "accepted", "declined"],
+      required: true,
+      default: "pending"
+    },
+    guestEmail: {
+      type: String,
+      required: false
+    },
+    userId: {
+      type: String,
+      required: false
+    },
+    adminNotes: {
+      type: String,
+      required: false,
+      default: ""
     }
   },
   {

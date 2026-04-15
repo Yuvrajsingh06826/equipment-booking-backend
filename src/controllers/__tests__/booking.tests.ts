@@ -54,7 +54,7 @@ describe("booking controller", () => {
 
   it("accepts valid booking input", () => {
     const booking = {
-      customerName: "Meet Patel",
+      customerName: "Yuvraj Singh",
       equipmentName: "Projector",
       rentalDate: "2099-04-20T10:00:00.000Z",
       rentalDays: 3,
@@ -66,7 +66,7 @@ describe("booking controller", () => {
 
   it("rejects past booking date", () => {
     const booking = {
-      customerName: "Meet Patel",
+      customerName: "Yuvraj Singh",
       equipmentName: "Projector",
       rentalDate: "2020-04-20T10:00:00.000Z",
       rentalDays: 3,
@@ -80,7 +80,7 @@ describe("booking controller", () => {
 
   it("rejects duplicate equipment booking", () => {
     const booking = {
-      customerName: "Meet Patel",
+      customerName: "Yuvraj Singh",
       equipmentName: "Projector",
       rentalDate: "2099-04-20T10:00:00.000Z",
       rentalDays: 3,
@@ -95,5 +95,78 @@ describe("booking controller", () => {
     expect(() => validateBooking(booking, existingBooking)).toThrow(
       "Selected equipment is already booked for this date"
     );
+  });
+
+  it("rejects invalid booking type", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15,
+      bookingType: "invalid" as "guest" | "registered"
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "Booking type must be guest or registered"
+    );
+  });
+
+  it("rejects guest booking without guest email", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15,
+      bookingType: "guest" as "guest" | "registered"
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "Guest email is required for guest booking"
+    );
+  });
+
+  it("rejects registered booking without user id", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15,
+      bookingType: "registered" as "guest" | "registered"
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "User id is required for registered booking"
+    );
+  });
+
+  it("accepts valid guest booking with guest email", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15,
+      bookingType: "guest" as "guest" | "registered",
+      guestEmail: "yuvraj@example.com"
+    };
+
+    expect(() => validateBooking(booking, null)).not.toThrow();
+  });
+
+  it("accepts valid registered booking with user id", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15,
+      bookingType: "registered" as "guest" | "registered",
+      userId: "user123"
+    };
+
+    expect(() => validateBooking(booking, null)).not.toThrow();
   });
 });
