@@ -3,46 +3,65 @@ import {
   calculateTotalBookingPrice,
   validateBooking
 } from "../controllers/booking";
-import {
-  addBooking,
-  getAllBookings,
-  getBookingByEquipmentAndDate,
-  getBookingById,
-  updateBookingById
-} from "./mongodb/queries/booking";
 import { logInfo } from "../utils/logger";
 
+type BookingStatus = "pending" | "accepted" | "declined";
+
+interface StoredBooking extends BookingInput {
+  id: string;
+  bookingType: "guest" | "registered";
+  bookingStatus: BookingStatus;
+  guestEmail: string;
+  userId: string;
+  adminNotes: string;
+  totalBookingPrice: number;
+  createdAt: string;
+}
+
+const bookingStore: StoredBooking[] = [];
+
+const createBookingId = () => {
+  return `booking_${bookingStore.length + 1}`;
+};
+
 const reserveEquipment = async (booking: BookingInput) => {
-  const existingBookingFromDb = await getBookingByEquipmentAndDate(
-    booking.equipmentName,
-    booking.rentalDate
+  const existingBooking = bookingStore.find(
+    (savedBooking) =>
+      savedBooking.equipmentName === booking.equipmentName &&
+      new Date(savedBooking.rentalDate).toISOString() ===
+        new Date(booking.rentalDate).toISOString()
   );
 
-  const existingBooking = existingBookingFromDb
-    ? {
-        equipmentName: existingBookingFromDb.equipmentName,
-        rentalDate: new Date(existingBookingFromDb.rentalDate).toISOString()
-      }
-    : null;
-
-  validateBooking(booking, existingBooking);
+  validateBooking(
+    booking,
+    existingBooking
+      ? {
+          equipmentName: existingBooking.equipmentName,
+          rentalDate: existingBooking.rentalDate
+        }
+      : null
+  );
 
   const totalBookingPrice = calculateTotalBookingPrice(
     booking.rentalDays,
     booking.dailyRate
   );
 
-  const savedBooking = await addBooking({
+  const savedBooking: StoredBooking = {
     ...booking,
+    id: createBookingId(),
     bookingType: booking.bookingType ?? "guest",
     bookingStatus: "pending",
     guestEmail: booking.guestEmail ?? "",
     userId: booking.userId ?? "",
     adminNotes: "",
-    totalBookingPrice
-  });
+    totalBookingPrice,
+    createdAt: new Date().toISOString()
+  };
 
-  logInfo("New booking request created");
+  bookingStore.unshift(savedBooking);
+
+  logInfo("New booking request created in memory");
 
   return {
     message: "Equipment booked successfully",
@@ -51,32 +70,28 @@ const reserveEquipment = async (booking: BookingInput) => {
 };
 
 const getAllBookingRequests = async () => {
-  const bookings = await getAllBookings();
-
-  logInfo("Fetched all booking requests");
+  logInfo("Fetched all booking requests from memory");
 
   return {
     message: "All booking requests fetched successfully",
-    bookings
+    bookings: bookingStore
   };
 };
 
 const acceptBookingRequest = async (bookingId: string) => {
-  const booking = await getBookingById(bookingId);
+  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
 
   if (!booking) {
     throw new Error("Booking request not found");
   }
 
-  const updatedBooking = await updateBookingById(bookingId, {
-    bookingStatus: "accepted"
-  });
+  booking.bookingStatus = "accepted";
 
   logInfo(`Booking request accepted: ${bookingId}`);
 
   return {
     message: "Booking request accepted successfully",
-    booking: updatedBooking
+    booking
   };
 };
 
@@ -84,22 +99,20 @@ const declineBookingRequest = async (
   bookingId: string,
   adminNotes: string
 ) => {
-  const booking = await getBookingById(bookingId);
+  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
 
   if (!booking) {
     throw new Error("Booking request not found");
   }
 
-  const updatedBooking = await updateBookingById(bookingId, {
-    bookingStatus: "declined",
-    adminNotes
-  });
+  booking.bookingStatus = "declined";
+  booking.adminNotes = adminNotes;
 
   logInfo(`Booking request declined: ${bookingId}`);
 
   return {
     message: "Booking request declined successfully",
-    booking: updatedBooking
+    booking
   };
 };
 
@@ -107,36 +120,36 @@ const editBookingRequest = async (
   bookingId: string,
   updateData: Partial<BookingInput>
 ) => {
-  const booking = await getBookingById(bookingId);
+  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
 
   if (!booking) {
     throw new Error("Booking request not found");
   }
 
-  const currentRentalDays =
-    typeof booking.rentalDays === "number" ? booking.rentalDays : 0;
-  const currentDailyRate =
-    typeof booking.dailyRate === "number" ? booking.dailyRate : 0;
-
   const updatedRentalDays =
     typeof updateData.rentalDays === "number"
       ? updateData.rentalDays
-      : currentRentalDays;
+      : booking.rentalDays;
 
   const updatedDailyRate =
     typeof updateData.dailyRate === "number"
       ? updateData.dailyRate
-      : currentDailyRate;
+      : booking.dailyRate;
 
-  const updatedTotalBookingPrice = calculateTotalBookingPrice(
-    updatedRentalDays,
-    updatedDailyRate
+  const updatedBooking = {
+    ...booking,
+    ...updateData,
+    totalBookingPrice: calculateTotalBookingPrice(
+      updatedRentalDays,
+      updatedDailyRate
+    )
+  };
+
+  const bookingIndex = bookingStore.findIndex(
+    (savedBooking) => savedBooking.id === bookingId
   );
 
-  const updatedBooking = await updateBookingById(bookingId, {
-    ...updateData,
-    totalBookingPrice: updatedTotalBookingPrice
-  });
+  bookingStore[bookingIndex] = updatedBooking;
 
   logInfo(`Booking request updated: ${bookingId}`);
 

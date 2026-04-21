@@ -11,34 +11,30 @@ const router = express.Router();
 router.post("/reserve", async (req: AuthenticatedRequest, res) => {
   try {
     const bookingData = { ...req.body };
+    const authHeader = req.headers.authorization;
 
-    if (bookingData.bookingType === "registered") {
-      const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      await new Promise<void>((resolve, reject) => {
+        authenticateUser(req, res, (error?: unknown) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        });
+      });
 
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      bookingData.bookingType = "registered";
+      bookingData.userId = req.user?.userId;
+    } else {
+      if (bookingData.bookingType === "registered") {
         return res.status(401).json({
           message: "Authentication required for registered booking"
         });
       }
 
-      const token = authHeader.split(" ")[1];
-
-      try {
-        req.headers.authorization = `Bearer ${token}`;
-        await new Promise<void>((resolve, reject) => {
-          authenticateUser(req, res, (error?: unknown) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve();
-            }
-          });
-        });
-      } catch (error) {
-        return;
-      }
-
-      bookingData.userId = req.user?.userId;
+      bookingData.bookingType = "guest";
+      bookingData.userId = "";
     }
 
     const response = await bookingInfrastructure.reserveEquipment(bookingData);
