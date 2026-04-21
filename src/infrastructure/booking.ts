@@ -24,9 +24,14 @@ const createBookingId = () => {
   return `booking_${bookingStore.length + 1}`;
 };
 
+const isBlockingBookingStatus = (bookingStatus: BookingStatus) => {
+  return bookingStatus === "pending" || bookingStatus === "accepted";
+};
+
 const reserveEquipment = async (booking: BookingInput) => {
   const existingBooking = bookingStore.find(
     (savedBooking) =>
+      isBlockingBookingStatus(savedBooking.bookingStatus) &&
       savedBooking.equipmentName === booking.equipmentName &&
       new Date(savedBooking.rentalDate).toISOString() ===
         new Date(booking.rentalDate).toISOString()
@@ -79,7 +84,9 @@ const getAllBookingRequests = async () => {
 };
 
 const acceptBookingRequest = async (bookingId: string) => {
-  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
+  const booking = bookingStore.find(
+    (savedBooking) => savedBooking.id === bookingId
+  );
 
   if (!booking) {
     throw new Error("Booking request not found");
@@ -99,7 +106,9 @@ const declineBookingRequest = async (
   bookingId: string,
   adminNotes: string
 ) => {
-  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
+  const booking = bookingStore.find(
+    (savedBooking) => savedBooking.id === bookingId
+  );
 
   if (!booking) {
     throw new Error("Booking request not found");
@@ -120,28 +129,64 @@ const editBookingRequest = async (
   bookingId: string,
   updateData: Partial<BookingInput>
 ) => {
-  const booking = bookingStore.find((savedBooking) => savedBooking.id === bookingId);
+  const booking = bookingStore.find(
+    (savedBooking) => savedBooking.id === bookingId
+  );
 
   if (!booking) {
     throw new Error("Booking request not found");
   }
 
-  const updatedRentalDays =
-    typeof updateData.rentalDays === "number"
-      ? updateData.rentalDays
-      : booking.rentalDays;
+  const updatedBookingData: BookingInput = {
+    customerName: updateData.customerName ?? booking.customerName,
+    equipmentName: updateData.equipmentName ?? booking.equipmentName,
+    rentalDate: updateData.rentalDate ?? booking.rentalDate,
+    rentalDays:
+      typeof updateData.rentalDays === "number"
+        ? updateData.rentalDays
+        : booking.rentalDays,
+    dailyRate:
+      typeof updateData.dailyRate === "number"
+        ? updateData.dailyRate
+        : booking.dailyRate,
+    bookingType: updateData.bookingType ?? booking.bookingType,
+    guestEmail:
+      updateData.bookingType === "registered"
+        ? undefined
+        : updateData.guestEmail ?? booking.guestEmail,
+    userId:
+      updateData.bookingType === "guest"
+        ? undefined
+        : updateData.userId ?? booking.userId
+  };
 
-  const updatedDailyRate =
-    typeof updateData.dailyRate === "number"
-      ? updateData.dailyRate
-      : booking.dailyRate;
+  const possibleExistingBooking = bookingStore.find(
+    (savedBooking) =>
+      savedBooking.id !== bookingId &&
+      isBlockingBookingStatus(savedBooking.bookingStatus) &&
+      savedBooking.equipmentName === updatedBookingData.equipmentName &&
+      new Date(savedBooking.rentalDate).toISOString() ===
+        new Date(updatedBookingData.rentalDate).toISOString()
+  );
 
-  const updatedBooking = {
+  validateBooking(
+    updatedBookingData,
+    possibleExistingBooking
+      ? {
+          equipmentName: possibleExistingBooking.equipmentName,
+          rentalDate: possibleExistingBooking.rentalDate
+        }
+      : null
+  );
+
+  const updatedBooking: StoredBooking = {
     ...booking,
-    ...updateData,
+    ...updatedBookingData,
+    guestEmail: updatedBookingData.guestEmail ?? "",
+    userId: updatedBookingData.userId ?? "",
     totalBookingPrice: calculateTotalBookingPrice(
-      updatedRentalDays,
-      updatedDailyRate
+      updatedBookingData.rentalDays,
+      updatedBookingData.dailyRate
     )
   };
 
