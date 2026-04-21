@@ -5,6 +5,7 @@ import {
   isValidDailyRate,
   isSupportedEquipment,
   isEquipmentAlreadyBooked,
+  isValidBookingType,
   validateBooking
 } from "../booking";
 
@@ -25,8 +26,16 @@ describe("booking controller", () => {
     expect(isValidRentalDays(0)).toBe(false);
   });
 
+  it("accepts valid rental days", () => {
+    expect(isValidRentalDays(3)).toBe(true);
+  });
+
   it("rejects invalid daily rate", () => {
     expect(isValidDailyRate(-10)).toBe(false);
+  });
+
+  it("accepts valid daily rate", () => {
+    expect(isValidDailyRate(15)).toBe(true);
   });
 
   it("accepts supported equipment", () => {
@@ -35,6 +44,12 @@ describe("booking controller", () => {
 
   it("rejects unsupported equipment", () => {
     expect(isSupportedEquipment("Drone")).toBe(false);
+  });
+
+  it("returns false when there is no existing booking", () => {
+    expect(
+      isEquipmentAlreadyBooked(null, "Projector", "2099-04-20T10:00:00.000Z")
+    ).toBe(false);
   });
 
   it("detects already booked equipment", () => {
@@ -50,6 +65,22 @@ describe("booking controller", () => {
         "2099-04-20T10:00:00.000Z"
       )
     ).toBe(true);
+  });
+
+  it("accepts undefined booking type", () => {
+    expect(isValidBookingType(undefined)).toBe(true);
+  });
+
+  it("accepts guest booking type", () => {
+    expect(isValidBookingType("guest")).toBe(true);
+  });
+
+  it("accepts registered booking type", () => {
+    expect(isValidBookingType("registered")).toBe(true);
+  });
+
+  it("rejects invalid booking type in helper", () => {
+    expect(isValidBookingType("invalid")).toBe(false);
   });
 
   it("accepts valid booking input", () => {
@@ -78,6 +109,48 @@ describe("booking controller", () => {
     );
   });
 
+  it("rejects invalid rental days in validation", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 0,
+      dailyRate: 15
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "Rental days must be greater than 0"
+    );
+  });
+
+  it("rejects invalid daily rate in validation", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Projector",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 0
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "Daily rate must be greater than 0"
+    );
+  });
+
+  it("rejects unsupported equipment in validation", () => {
+    const booking = {
+      customerName: "Yuvraj Singh",
+      equipmentName: "Drone",
+      rentalDate: "2099-04-20T10:00:00.000Z",
+      rentalDays: 3,
+      dailyRate: 15
+    };
+
+    expect(() => validateBooking(booking, null)).toThrow(
+      "Selected equipment is not supported"
+    );
+  });
+
   it("rejects duplicate equipment booking", () => {
     const booking = {
       customerName: "Yuvraj Singh",
@@ -97,14 +170,14 @@ describe("booking controller", () => {
     );
   });
 
-  it("rejects invalid booking type", () => {
+  it("rejects invalid booking type in validation", () => {
     const booking = {
       customerName: "Yuvraj Singh",
       equipmentName: "Projector",
       rentalDate: "2099-04-20T10:00:00.000Z",
       rentalDays: 3,
       dailyRate: 15,
-      bookingType: "invalid" as "guest" | "registered"
+      bookingType: "invalid" as unknown as "guest" | "registered"
     };
 
     expect(() => validateBooking(booking, null)).toThrow(

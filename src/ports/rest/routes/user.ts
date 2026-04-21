@@ -1,7 +1,12 @@
-import express, { NextFunction, Request, Response } from "express";
+import express, { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { getJwtSecret } from "../../../middleware/auth";
+import {
+  validateCreateUserInput,
+  validateLoginInput,
+  normalizeUserRole
+} from "../../../controllers/user";
 
 const router = express.Router();
 
@@ -14,109 +19,101 @@ interface UserRecord {
 
 const userDb: UserRecord[] = [];
 
-router.post(
-  "/create",
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userName = req.body.userName;
-      const userPassword = req.body.userPassword;
-      const role: "user" | "admin" =
-        req.body.role === "admin" ? "admin" : "user";
+router.post("/create", async (req: Request, res: Response) => {
+  try {
+    validateCreateUserInput(req.body);
 
-      const existingUser = userDb.find(
-        (savedUser) => savedUser.userName === userName
-      );
+    const userName = req.body.userName.trim();
+    const userPassword = req.body.userPassword;
+    const role = normalizeUserRole(req.body.role);
 
-      if (existingUser) {
-        return res.status(400).json({
-          message: "User already exists"
-        });
-      }
+    const existingUser = userDb.find(
+      (savedUser) => savedUser.userName.toLowerCase() === userName.toLowerCase()
+    );
 
-      const salt = await bcrypt.genSalt();
-      const hashedPassword = await bcrypt.hash(userPassword, salt);
-
-      const createUser: UserRecord = {
-        userId: `user_${userDb.length + 1}`,
-        userName,
-        userPassword: hashedPassword,
-        role
-      };
-
-      userDb.push(createUser);
-
-      res.status(200).json({
-        message: "User created successfully",
-        user: {
-          userId: createUser.userId,
-          userName: createUser.userName,
-          role: createUser.role
-        }
-      });
-    } catch (error) {
-      console.log(
-        `Error creating user: ${JSON.stringify((error as Error).message)}`
-      );
-      res.status(500).json({
-        message: `Error creating user: ${JSON.stringify(
-          (error as Error).message
-        )}`
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User already exists"
       });
     }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(userPassword, salt);
+
+    const createdUser: UserRecord = {
+      userId: `user_${userDb.length + 1}`,
+      userName,
+      userPassword: hashedPassword,
+      role
+    };
+
+    userDb.push(createdUser);
+
+    return res.status(200).json({
+      message: "User created successfully",
+      user: {
+        userId: createdUser.userId,
+        userName: createdUser.userName,
+        role: createdUser.role
+      }
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Something went wrong";
+
+    return res.status(400).json({ message });
   }
-);
+});
 
-router.post(
-  "/login",
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const user = userDb.find(
-        (savedUser) => savedUser.userName === req.body.userName
-      );
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    validateLoginInput(req.body);
 
-      if (!user) {
-        throw new Error("Error logging in, unable to find username");
-      }
+    const userName = req.body.userName.trim();
+    const userPassword = req.body.userPassword;
 
-      const compareResult = await bcrypt.compare(
-        req.body.userPassword,
-        user.userPassword
-      );
+    const user = userDb.find(
+      (savedUser) => savedUser.userName.toLowerCase() === userName.toLowerCase()
+    );
 
-      if (!compareResult) {
-        throw new Error("Error logging in, invalid password");
-      }
-
-      const token = jwt.sign(
-        {
-          userId: user.userId,
-          userName: user.userName,
-          role: user.role
-        },
-        getJwtSecret(),
-        { expiresIn: "1h" }
-      );
-
-      res.status(200).json({
-        message: "User logged in successfully",
-        token,
-        user: {
-          userId: user.userId,
-          userName: user.userName,
-          role: user.role
-        }
-      });
-    } catch (error) {
-      console.log(
-        `Error logging in: ${JSON.stringify((error as Error).message)}`
-      );
-      res.status(500).json({
-        message: `Error logging in: ${JSON.stringify(
-          (error as Error).message
-        )}`
-      });
+    if (!user) {
+      throw new Error("Error logging in, unable to find username");
     }
+
+    const compareResult = await bcrypt.compare(
+      userPassword,
+      user.userPassword
+    );
+
+    if (!compareResult) {
+      throw new Error("Error logging in, invalid password");
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user.userId,
+        userName: user.userName,
+        role: user.role
+      },
+      getJwtSecret(),
+      { expiresIn: "1h" }
+    );
+
+    return res.status(200).json({
+      message: "User logged in successfully",
+      token,
+      user: {
+        userId: user.userId,
+        userName: user.userName,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Something went wrong";
+
+    return res.status(400).json({ message });
   }
-);
+});
 
 export default router;
